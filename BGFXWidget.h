@@ -27,9 +27,6 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 
-public slots:
-    void renderingUpdate();
-
 private:
     uint32_t initial_width;
     uint32_t initial_height;

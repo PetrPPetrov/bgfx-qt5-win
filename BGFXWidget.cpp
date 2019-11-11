@@ -337,8 +337,3 @@ void BGFXWidget::wheelEvent(QWheelEvent *event)
     viewer_pos = add(viewer_target, new_user_position);
     update();
 }
-
-void BGFXWidget::renderingUpdate()
-{
-    update();
-}
