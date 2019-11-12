@@ -15,7 +15,7 @@ cd bgfx
 ```
 
 If you have MSVC 2017 then use 'vs2017' keyword instead. It seems that genie supports other MSVC versions, but I did not try.
-Open the generated bgfx\.build\projects\bgfx.sln in Visual Studio IDE and switch build type to 'Release', switch architecture to 'x64'.
+Open the generated bgfx\\.build\projects\bgfx.sln in Visual Studio IDE and switch build type to 'Release', switch architecture to 'x64'.
 Build it (F7 key usually).
 
 ### Build or download QT5 for your compiler and platform
