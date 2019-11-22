@@ -1,13 +1,13 @@
 #pragma once
 
 #include <QObject>
-#include <QWidget>
+#include <QOpenGLWidget>
 #include <QResizeEvent>
 #include "bgfx/bgfx.h"
 #include "bx/bx.h"
 #include "bx/math.h"
 
-class BGFXWidget : public QWidget
+class BGFXWidget : public QOpenGLWidget
 {
     Q_OBJECT
 

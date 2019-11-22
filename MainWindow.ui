@@ -19,7 +19,7 @@
  <customwidgets>
   <customwidget>
    <class>BGFXWidget</class>
-   <extends>QWidget</extends>
+   <extends>QOpenGLWidget</extends>
    <header>BGFXWidget.h</header>
    <container>1</container>
   </customwidget>

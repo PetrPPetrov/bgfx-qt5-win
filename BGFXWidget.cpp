@@ -107,7 +107,7 @@ inline bgfx::ProgramHandle loadProgram(const std::string& vs_name, const std::st
     return bgfx::createProgram(vsh, fsh);
 }
 
-BGFXWidget::BGFXWidget(QWidget *parent) : QWidget(parent)
+BGFXWidget::BGFXWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
     setDefaultCamera();
 }
@@ -120,7 +120,7 @@ void BGFXWidget::initializeBGFX(int width, int height, void* native_window_handl
     reset = BGFX_RESET_NONE;
 
     bgfx::Init init;
-    init.type = bgfx::RendererType::OpenGL; // Or Direct3D9 or Direct3D11
+    init.type = bgfx::RendererType::Direct3D9; // Or OpenGL or Direct3D11
     init.vendorId = BGFX_PCI_ID_NONE;
     init.resolution.width = width;
     init.resolution.height = height;
@@ -234,8 +234,8 @@ void BGFXWidget::mouseMoveEvent(QMouseEvent *event)
     {
         // Rotation mode
         QPointF current_point = event->localPos();
-        double delta_x = current_point.x() - previous_point.x();
-        double delta_y = current_point.y() - previous_point.y();
+        double delta_x = previous_point.x() - current_point.x();
+        double delta_y = previous_point.y() - current_point.y();
         double x_rotation_angle = delta_x / width() * bx::kPi;
         double y_rotation_angle = delta_y / height() * bx::kPi;
         auto user_position = sub(viewer_previous_pos, viewer_previous_target);
