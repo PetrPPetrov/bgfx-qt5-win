@@ -1,5 +1,5 @@
 # bgfx-qt5-win
-Buggy (!) Skeleton program to integrate Qt5 + bgfx on Windows platform
+Bugy (!) Skeleton program to integrate Qt5 + bgfx on Windows platform
 Note: it does not work as desired.
 
 ## How to build
