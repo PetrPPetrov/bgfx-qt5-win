@@ -18,9 +18,9 @@
 #include <fs_cubes.sc.essl.bin.h>
 #include <fs_cubes.sc.spv.bin.h>
 #if defined(_WIN32)
-#include <vs_cubes.sc.dx9.bin.h>
+#include <vs_cubes.sc.dx10.bin.h>
 #include <vs_cubes.sc.dx11.bin.h>
-#include <fs_cubes.sc.dx9.bin.h>
+#include <fs_cubes.sc.dx10.bin.h>
 #include <fs_cubes.sc.dx11.bin.h>
 #endif //  defined(_WIN32)
 #if __APPLE__
