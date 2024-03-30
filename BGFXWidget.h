@@ -18,12 +18,15 @@ public:
 
 private:
     void setDefaultCamera();
-    void draw();
 
     qreal realWidth() const { return width() * devicePixelRatio(); }
     qreal realHeight() const { return height() * devicePixelRatio(); }
 
 protected:
+    // disable warning
+    // QWidget::paintEngine: Should no longer be called
+    QPaintEngine* paintEngine() const override { return nullptr; }
+
     void showEvent(QShowEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -55,6 +58,4 @@ private:
     bool left_mouse_pressed = false;
     bool right_mouse_pressed = false;
     QPointF previous_point;
-
-    bool is_bgfx_paint = false;
 };
