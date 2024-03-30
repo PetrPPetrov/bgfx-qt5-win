@@ -93,6 +93,9 @@ static const uint16_t s_cubeTriList[] =
 
 BGFXWidget::BGFXWidget(QWidget *parent) : QWidget(parent)
 {
+    // disable Qt double buffering
+    setAttribute(Qt::WA_PaintOnScreen);
+
     setDefaultCamera();
 }
 
@@ -161,7 +164,7 @@ void BGFXWidget::setDefaultCamera()
     maximum_rotation_radius = 1000.0;
 }
 
-void BGFXWidget::draw()
+void BGFXWidget::paintEvent(QPaintEvent*)
 {
     // Set view and projection matrix for view 0.
     {
@@ -201,19 +204,6 @@ void BGFXWidget::draw()
     // Advance to next frame. Rendering thread will be kicked to
     // process submitted rendering primitives.
     bgfx::frame();
-}
-
-void BGFXWidget::paintEvent(QPaintEvent*)
-{
-    if (is_bgfx_paint)
-    {
-        update();
-        is_bgfx_paint = false;
-        return;
-    }
-
-    draw();
-    is_bgfx_paint = true;
 }
 
 void BGFXWidget::resizeEvent(QResizeEvent*)

@@ -19,16 +19,12 @@ set(BGFX_USE_OVR          OFF CACHE INTERNAL "" FORCE)
 set(BUILD_SHARED_LIBS     OFF CACHE INTERNAL "" FORCE)
 set(BX_AMALGAMATED        OFF CACHE INTERNAL "" FORCE)
 
-set(BGFX_BUILD_TOOLS      ON  CACHE INTERNAL "" FORCE)
+# Shader compilation
+set(BGFX_BUILD_TOOLS ON CACHE INTERNAL "" FORCE)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  add_definitions(-DBX_CONFIG_DEBUG=1)
-else()
-  add_definitions(-DBX_CONFIG_DEBUG=0)
+  set(BX_CONFIG_DEBUG ON CACHE INTERNAL "" FORCE)
 endif()
-
-# Synchronize bgfx rendering with Qt main thread
-add_definitions(-DBGFX_CONFIG_MULTITHREADED=0)
 
 add_subdirectory(bgfx.cmake)
 
