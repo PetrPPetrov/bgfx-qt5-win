@@ -1,6 +1,46 @@
 #include <cassert>
 #include <fstream>
+#include <array>
+
+#include <QResizeEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
+
+#include <bgfx/embedded_shader.h>
+#include <bgfx/platform.h>
+
 #include "BGFXWidget.h"
+
+#include <vs_cubes.sc.glsl.bin.h>
+#include <vs_cubes.sc.essl.bin.h>
+#include <vs_cubes.sc.spv.bin.h>
+#include <fs_cubes.sc.glsl.bin.h>
+#include <fs_cubes.sc.essl.bin.h>
+#include <fs_cubes.sc.spv.bin.h>
+#if defined(_WIN32)
+#include <vs_cubes.sc.dx10.bin.h>
+#include <vs_cubes.sc.dx11.bin.h>
+#include <fs_cubes.sc.dx10.bin.h>
+#include <fs_cubes.sc.dx11.bin.h>
+#endif //  defined(_WIN32)
+#if __APPLE__
+#include <vs_cubes.sc.mtl.bin.h>
+#include <fs_cubes.sc.mtl.bin.h>
+#endif // __APPLE__
+
+// Embedded shader has DirectX 11 enabled for Linux
+#ifdef __linux__
+#undef BGFX_EMBEDDED_SHADER_DXBC
+#define BGFX_EMBEDDED_SHADER_DXBC(...)
+#endif
+
+static const bgfx::EmbeddedShader s_embeddedShaders[] =
+{
+	BGFX_EMBEDDED_SHADER(vs_cubes),
+	BGFX_EMBEDDED_SHADER(fs_cubes),
+
+	BGFX_EMBEDDED_SHADER_END()
+};
 
 struct PosColorVertex
 {
@@ -51,86 +91,35 @@ static const uint16_t s_cubeTriList[] =
     6, 3, 7,
 };
 
-inline const bgfx::Memory* loadMem(const std::string& filename)
+BGFXWidget::BGFXWidget(QWidget *parent) : QWidget(parent)
 {
-    std::ifstream in(filename.c_str(), std::ios_base::binary);
-    in.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    in.seekg(0, std::ifstream::end);
-    const uint32_t file_size(static_cast<uint32_t>(in.tellg()));
-    in.seekg(0, std::ifstream::beg);
-    const bgfx::Memory* mem = bgfx::alloc(file_size + 1);
-    if (mem && file_size > 0)
-    {
-        in.read(reinterpret_cast<char*>(mem->data), file_size);
-        mem->data[mem->size - 1] = '\0';
-    }
-    return mem;
-}
+    // disable Qt double buffering
+    setAttribute(Qt::WA_PaintOnScreen);
 
-inline bgfx::ShaderHandle loadShader(const std::string& filename)
-{
-    std::string shader_path;
-
-    switch (bgfx::getRendererType())
-    {
-    default:
-    case bgfx::RendererType::Noop:
-        assert(false);
-    case bgfx::RendererType::Direct3D9:  shader_path = "shaders/dx9/";   break;
-    case bgfx::RendererType::Direct3D11:
-    case bgfx::RendererType::Direct3D12: shader_path = "shaders/dx11/";  break;
-    case bgfx::RendererType::Gnm:        shader_path = "shaders/pssl/";  break;
-    case bgfx::RendererType::Metal:      shader_path = "shaders/metal/"; break;
-    case bgfx::RendererType::Nvn:        shader_path = "shaders/nvn/";   break;
-    case bgfx::RendererType::OpenGL:     shader_path = "shaders/glsl/";  break;
-    case bgfx::RendererType::OpenGLES:   shader_path = "shaders/essl/";  break;
-    case bgfx::RendererType::Vulkan:     shader_path = "shaders/spirv/"; break;
-    }
-
-    std::string file_path = shader_path + filename + ".bin";
-
-    bgfx::ShaderHandle handle = bgfx::createShader(loadMem(file_path));
-    bgfx::setName(handle, filename.c_str());
-
-    return handle;
-}
-
-inline bgfx::ProgramHandle loadProgram(const std::string& vs_name, const std::string& fs_name)
-{
-    bgfx::ShaderHandle vsh = loadShader(vs_name);
-    bgfx::ShaderHandle fsh = BGFX_INVALID_HANDLE;
-    if (!fs_name.empty())
-    {
-        fsh = loadShader(fs_name);
-    }
-
-    return bgfx::createProgram(vsh, fsh);
-}
-
-BGFXWidget::BGFXWidget(QWidget *parent) : QOpenGLWidget(parent)
-{
     setDefaultCamera();
 }
 
-void BGFXWidget::initializeBGFX(int width, int height, void* native_window_handle)
+void BGFXWidget::showEvent(QShowEvent* event)
 {
-    initial_width = width;
-    initial_height = height;
     debug = BGFX_DEBUG_NONE;
     reset = BGFX_RESET_NONE;
 
     bgfx::Init init;
-    init.type = bgfx::RendererType::Direct3D9; // Or OpenGL or Direct3D11
+    init.type = renderer_type;
     init.vendorId = BGFX_PCI_ID_NONE;
-    init.resolution.width = width;
-    init.resolution.height = height;
+    init.resolution.width = realWidth();
+    init.resolution.height = realHeight();
     init.resolution.reset = reset;
-    init.platformData.nwh = native_window_handle;
+    init.platformData.nwh = reinterpret_cast<void*>(winId());
     bgfx::init(init);
 
+    // Enable debug text.
     bgfx::setDebug(debug);
+
+    // Set view 0 clear state.
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
+    // Create vertex stream declaration.
     PosColorVertex::init();
 
     // Create static vertex buffer.
@@ -147,7 +136,11 @@ void BGFXWidget::initializeBGFX(int width, int height, void* native_window_handl
     );
 
     // Create program from shaders.
-    m_program = loadProgram("vs_cubes", "fs_cubes");
+    m_program = bgfx::createProgram(
+        bgfx::createEmbeddedShader(s_embeddedShaders, renderer_type, "vs_cubes"),
+        bgfx::createEmbeddedShader(s_embeddedShaders, renderer_type, "fs_cubes"),
+        true /* destroy shaders when program is destroyed */
+	);
 }
 
 BGFXWidget::~BGFXWidget()
@@ -171,27 +164,33 @@ void BGFXWidget::setDefaultCamera()
     maximum_rotation_radius = 1000.0;
 }
 
-void BGFXWidget::paintEvent(QPaintEvent* event)
+void BGFXWidget::paintEvent(QPaintEvent*)
 {
-    float view_matrix[16];
-    bx::mtxLookAt(
-        view_matrix,
-        viewer_pos,
-        viewer_target,
-        viewer_up
-    );
+    // Set view and projection matrix for view 0.
+    {
+        std::array<float, 16> view_matrix;
+        bx::mtxLookAt(
+            view_matrix.data(),
+            viewer_pos,
+            viewer_target,
+            viewer_up
+        );
 
-    float projection_matrix[16];
-    bx::mtxProj(
-        projection_matrix, 50.0f,
-        static_cast<float>(width()) / static_cast<float>(height()),
-        1.0f,
-        1024.0f,
-        bgfx::getCaps()->homogeneousDepth
-    );
-    bgfx::setViewTransform(0, view_matrix, projection_matrix);
-    bgfx::setViewRect(0, 0, 0, width(), height());
+        std::array<float, 16> projection_matrix;
+        bx::mtxProj(
+            projection_matrix.data(), 50.0f,
+            realWidth() / realHeight(),
+            1.0f,
+            1024.0f,
+            bgfx::getCaps()->homogeneousDepth
+        );
 
+        bgfx::setViewTransform(0, view_matrix.data(), projection_matrix.data());
+        bgfx::setViewRect(0, 0, 0, realWidth(), realHeight());
+    }
+
+    // This dummy draw call is here to make sure that view 0 is cleared
+    // if no other draw calls are submitted to view 0.
     bgfx::touch(0);
 
     // Set vertex and index buffer.
@@ -207,9 +206,14 @@ void BGFXWidget::paintEvent(QPaintEvent* event)
     bgfx::frame();
 }
 
-void BGFXWidget::resizeEvent(QResizeEvent* event)
+void BGFXWidget::resizeEvent(QResizeEvent*)
 {
-    // TODO:
+    if (bgfx::getInternalData()->context != nullptr)
+    {
+        bgfx::reset(realWidth(), realHeight(), reset);
+    }
+
+    update();
 }
 
 void BGFXWidget::mouseMoveEvent(QMouseEvent *event)
@@ -217,63 +221,61 @@ void BGFXWidget::mouseMoveEvent(QMouseEvent *event)
     if (left_mouse_pressed && right_mouse_pressed)
     {
         // Pan mode
-        QPointF current_point = event->localPos();
+        QPointF current_point = event->position();
         const double effective_rotation_radius = std::max(rotation_radius, 10.0);
         double delta_x = (current_point.x() - previous_point.x()) / width() * effective_rotation_radius;
         double delta_y = (current_point.y() - previous_point.y()) / height() * effective_rotation_radius;
-        auto user_position = sub(viewer_previous_pos, viewer_previous_target);
-        auto right = normalize(cross(viewer_up, user_position));
-        auto offset = add(mul(right, delta_x), mul(viewer_up, delta_y));
-        viewer_pos = add(viewer_previous_pos, offset);
-        viewer_target = add(viewer_previous_target, offset);
+        auto user_position = bx::sub(viewer_previous_pos, viewer_previous_target);
+        auto right = bx::normalize(bx::cross(viewer_up, user_position));
+        auto offset = bx::add(bx::mul(right, delta_x), bx::mul(viewer_up, delta_y));
+        viewer_pos = bx::add(viewer_previous_pos, offset);
+        viewer_target = bx::add(viewer_previous_target, offset);
         // Restore rotation orbit radius
-        viewer_target = add(viewer_pos, mul(normalize(sub(viewer_target, viewer_pos)), rotation_radius));
-        update();
+        viewer_target = bx::add(viewer_pos, bx::mul(bx::normalize(bx::sub(viewer_target, viewer_pos)), rotation_radius));
     }
     else if (left_mouse_pressed)
     {
         // Rotation mode
-        QPointF current_point = event->localPos();
+        QPointF current_point = event->position();
         double delta_x = previous_point.x() - current_point.x();
         double delta_y = previous_point.y() - current_point.y();
         double x_rotation_angle = delta_x / width() * bx::kPi;
         double y_rotation_angle = delta_y / height() * bx::kPi;
-        auto user_position = sub(viewer_previous_pos, viewer_previous_target);
-        auto rotation_x = bx::rotateAxis(viewer_previous_up, x_rotation_angle);
-        bx::Vec3 temp_user_position = mul(user_position, rotation_x);
-        auto left = normalize(cross(temp_user_position, viewer_previous_up));
-        auto rotation_y = bx::rotateAxis(left, y_rotation_angle);
-        bx::Quaternion result_rotation = mul(rotation_x, rotation_y);
-        auto rotated_user_position = mul(normalize(mul(user_position, result_rotation)), rotation_radius);
-        viewer_pos = add(viewer_previous_target, rotated_user_position);
-        viewer_up = normalize(mul(viewer_previous_up, result_rotation));
+        auto user_position = bx::sub(viewer_previous_pos, viewer_previous_target);
+        auto rotation_x = bx::mul(viewer_previous_up, bx::rotateX(x_rotation_angle));
+        bx::Vec3 temp_user_position = bx::mul(user_position, rotation_x);
+        auto left = bx::normalize(bx::cross(temp_user_position, viewer_previous_up));
+        auto rotation_y = bx::mul(left, bx::rotateY(y_rotation_angle));
+        bx::Quaternion result_rotation = bx::mul(bx::fromEuler(rotation_x), bx::fromEuler(rotation_y));
+        auto rotated_user_position = bx::mul(bx::normalize(mul(user_position, result_rotation)), rotation_radius);
+        viewer_pos = bx::add(viewer_previous_target, rotated_user_position);
+        viewer_up = bx::normalize(bx::mul(viewer_previous_up, result_rotation));
         // Restore up vector property: up vector must be orthogonal to direction vector
-        auto new_left = cross(rotated_user_position, viewer_up);
-        viewer_up = normalize(cross(new_left, rotated_user_position));
-        update();
+        auto new_left = bx::cross(rotated_user_position, viewer_up);
+        viewer_up = bx::normalize(bx::cross(new_left, rotated_user_position));
     }
     else if (right_mouse_pressed)
     {
         // First person look mode
-        QPointF current_point = event->localPos();
+        QPointF current_point = event->position();
         double delta_x = current_point.x() - previous_point.x();
         double delta_y = current_point.y() - previous_point.y();
         double x_rotation_angle = delta_x / width() * bx::kPi;
         double y_rotation_angle = delta_y / height() * bx::kPi;
-        auto view_direction = sub(viewer_previous_target, viewer_previous_pos);
-        auto rotation_x = bx::rotateAxis(viewer_previous_up, x_rotation_angle);
-        bx::Vec3 temp_view_direction = mul(view_direction, rotation_x);
-        auto left = normalize(cross(viewer_previous_up, temp_view_direction));
-        auto rotation_y = bx::rotateAxis(left, y_rotation_angle);
-        bx::Quaternion result_rotation = mul(rotation_y, rotation_x);
-        auto rotated_view_direction = mul(normalize(mul(view_direction, result_rotation)), rotation_radius);
-        viewer_target = add(viewer_previous_pos, rotated_view_direction);
-        viewer_up = normalize(mul(viewer_previous_up, result_rotation));
+        auto view_direction = bx::sub(viewer_previous_target, viewer_previous_pos);
+        auto rotation_x = bx::mul(viewer_previous_up, bx::rotateX(x_rotation_angle));
+        bx::Vec3 temp_view_direction = bx::mul(view_direction, rotation_x);
+        auto left = bx::normalize(bx::cross(viewer_previous_up, temp_view_direction));
+        auto rotation_y = bx::mul(left, bx::rotateY(y_rotation_angle));
+        bx::Quaternion result_rotation = bx::mul(bx::fromEuler(rotation_y), bx::fromEuler(rotation_x));
+        auto rotated_view_direction = bx::mul(bx::normalize(bx::mul(view_direction, result_rotation)), rotation_radius);
+        viewer_target = bx::add(viewer_previous_pos, rotated_view_direction);
+        viewer_up = bx::normalize(bx::mul(viewer_previous_up, result_rotation));
         // Restore up vector property: up vector must be orthogonal to direction vector
-        auto new_left = cross(viewer_up, rotated_view_direction);
-        viewer_up = normalize(cross(rotated_view_direction, new_left));
-        update();
+        auto new_left = bx::cross(viewer_up, rotated_view_direction);
+        viewer_up = bx::normalize(bx::cross(rotated_view_direction, new_left));
     }
+    update();
 }
 
 void BGFXWidget::mousePressEvent(QMouseEvent *event)
@@ -291,11 +293,12 @@ void BGFXWidget::mousePressEvent(QMouseEvent *event)
     }
     if (left_or_right)
     {
-        previous_point = event->localPos();
+        previous_point = event->position();
         viewer_previous_pos = viewer_pos;
         viewer_previous_target = viewer_target;
         viewer_previous_up = viewer_up;
     }
+    update();
 }
 
 void BGFXWidget::mouseReleaseEvent(QMouseEvent *event)
@@ -313,11 +316,12 @@ void BGFXWidget::mouseReleaseEvent(QMouseEvent *event)
     }
     if (left_or_right)
     {
-        previous_point = event->localPos();
+        previous_point = event->position();
         viewer_previous_pos = viewer_pos;
         viewer_previous_target = viewer_target;
         viewer_previous_up = viewer_up;
     }
+    update();
 }
 
 void BGFXWidget::wheelEvent(QWheelEvent *event)
@@ -332,8 +336,8 @@ void BGFXWidget::wheelEvent(QWheelEvent *event)
     {
         rotation_radius = maximum_rotation_radius;
     }
-    auto user_position = sub(viewer_pos, viewer_target);
-    auto new_user_position = mul(normalize(user_position), rotation_radius);
-    viewer_pos = add(viewer_target, new_user_position);
+    auto user_position = bx::sub(viewer_pos, viewer_target);
+    auto new_user_position = bx::mul(bx::normalize(user_position), rotation_radius);
+    viewer_pos = bx::add(viewer_target, new_user_position);
     update();
 }

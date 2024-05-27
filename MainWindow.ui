@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <widget class="QWidget" name="MainWindow">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,18 +11,22 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>BGFX_QT</string>
+   <string>BGFX-QT</string>
   </property>
-  <widget class="BGFXWidget" name="centralwidget"/>
-  <widget class="QMenuBar" name="menubar"/>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="BGFXWidget" name="centralwidget" native="true"/>
+   </item>
+  </layout>
  </widget>
  <customwidgets>
   <customwidget>
    <class>BGFXWidget</class>
-   <extends>QOpenGLWidget</extends>
+   <extends>QWidget</extends>
    <header>BGFXWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
+ <resources/>
  <connections/>
 </ui>

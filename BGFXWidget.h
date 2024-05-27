@@ -1,25 +1,33 @@
 #pragma once
 
-#include <QObject>
-#include <QOpenGLWidget>
-#include <QResizeEvent>
-#include "bgfx/bgfx.h"
-#include "bx/bx.h"
-#include "bx/math.h"
+#include <QWidget>
 
-class BGFXWidget : public QOpenGLWidget
+#include <bgfx/bgfx.h>
+#include <bx/bx.h>
+#include <bx/math.h>
+
+class BGFXWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    BGFXWidget(QWidget *parent);
+    BGFXWidget(QWidget *parent = nullptr);
     ~BGFXWidget();
-    void initializeBGFX(int width, int height, void* native_window_handle);
+
+    void setRendererType(bgfx::RendererType::Enum renderer_type) { this->renderer_type = renderer_type; }
 
 private:
     void setDefaultCamera();
 
+    qreal realWidth() const { return width() * devicePixelRatio(); }
+    qreal realHeight() const { return height() * devicePixelRatio(); }
+
 protected:
+    // disable warning
+    // QWidget::paintEngine: Should no longer be called
+    QPaintEngine* paintEngine() const override { return nullptr; }
+
+    void showEvent(QShowEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -28,21 +36,21 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
-    uint32_t initial_width;
-    uint32_t initial_height;
+    bgfx::RendererType::Enum renderer_type = bgfx::RendererType::OpenGL;
+
     uint32_t debug;
     uint32_t reset;
     bgfx::VertexBufferHandle m_vbh;
     bgfx::IndexBufferHandle m_ibh;
     bgfx::ProgramHandle m_program;
 
-    bx::Vec3 viewer_pos;
-    bx::Vec3 viewer_target;
-    bx::Vec3 viewer_up;
+    bx::Vec3 viewer_pos{ bx::InitNone };
+    bx::Vec3 viewer_target{ bx::InitNone };
+    bx::Vec3 viewer_up{ bx::InitNone };
 
-    bx::Vec3 viewer_previous_pos;
-    bx::Vec3 viewer_previous_target;
-    bx::Vec3 viewer_previous_up;
+    bx::Vec3 viewer_previous_pos{ bx::InitNone };
+    bx::Vec3 viewer_previous_target{ bx::InitNone };
+    bx::Vec3 viewer_previous_up{ bx::InitNone };
 
     double minimum_rotation_radius = 0.1;
     double maximum_rotation_radius = 1000.0;
